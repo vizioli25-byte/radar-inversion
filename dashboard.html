@@ -1,1 +1,998 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1020"><link rel="manifest" href="manifest.webmanifest"><title>Radar de Inversión</title><style>*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f5f7fb;font:15px Arial}.app{max-width:760px;margin:auto;padding:20px}.muted{color:#8f9bb5}h1{margin:0}.card{background:#151d31;border:1px solid #293650;border-radius:15px;padding:15px;margin:10px 0}.row{display:flex;justify-content:space-between}.score{font-size:25px;font-weight:bold}.buy{color:#25d695}.wait{color:#f4c95d}.avoid{color:#ff6678}.metric{font-size:12px;line-height:1.7;margin-top:9px}.bar{height:6px;background:#0e1628;border-radius:8px;margin-top:10px}.fill{height:100%;background:#25d695;border-radius:8px}.hero{padding:18px;border-radius:18px;background:#17284d;margin:16px 0}</style></head><body><div class="app"><h1>Radar de Inversión</h1><div id="date" class="muted">Cargando...</div><div class="hero"><b>TOP 5 SEMANAL</b><br><span class="muted">CEDEARs y acciones · 1–12 semanas</span></div><div id="list"></div><p class="muted">⚠️ Señales cuantitativas orientativas; no constituyen asesoramiento financiero.</p></div><script>fetch("data/weekly_top5.json?"+Date.now()).then(r=>r.json()).then(x=>{document.getElementById("date").textContent=x.generated_at?"Actualizado: "+new Date(x.generated_at).toLocaleString("es-AR"):"Sin análisis generado";document.getElementById("list").innerHTML=x.top5.map((a,i)=>`<div class="card"><div class="row"><div><b>#${i+1} ${a.ticker}</b><div class="${a.signal.includes("COMPRA")?"buy":a.signal==="ESPERAR"?"wait":"avoid"}">${a.signal}</div></div><b class="score">${a.score}</b></div><div class="bar"><div class="fill" style="width:${a.score}%"></div></div><div class="metric">Confianza: ${a.confidence}% · Precio: ${a.price}<br>Entrada: ${a.entry_low} – ${a.entry_high}<br>Objetivos: ${a.target1} / ${a.target2}<br>Stop: ${a.stop_loss} · R/B: ${a.risk_reward}<br>RSI: ${a.rsi} · 20 ruedas: ${a.ret20}% · Volumen: ${a.volume_ratio}x</div></div>`).join("")}).catch(()=>document.getElementById("list").innerHTML="<div class='card'>No hay informe disponible.</div>");if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");</script></body></html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="Radar de Inversión - análisis y ranking de CEDEARs">
+
+  <link rel="manifest" href="./manifest.webmanifest">
+
+  <title>Radar de Inversión</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+      background: #0b1220;
+      color: #e5e7eb;
+    }
+
+    .container {
+      width: min(1100px, 100%);
+      margin: auto;
+      padding: 18px;
+    }
+
+    header {
+      background: linear-gradient(135deg, #111827, #172554);
+      border-bottom: 1px solid #263449;
+    }
+
+    .header-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: #2563eb;
+      display: grid;
+      place-items: center;
+      font-size: 25px;
+      box-shadow: 0 8px 25px rgba(37, 99, 235, .35);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 5vw, 36px);
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    .status {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #064e3b;
+      color: #a7f3d0;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    main {
+      padding-top: 20px;
+      padding-bottom: 40px;
+    }
+
+    .hero {
+      background: #111827;
+      border: 1px solid #263449;
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    input,
+    select,
+    button {
+      font: inherit;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #e5e7eb;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #3b82f6;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 18px;
+      background: #2563eb;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      background: #111827;
+      border: 1px solid #263449;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .stat-label {
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    .stat-value {
+      font-size: 25px;
+      font-weight: 800;
+      margin-top: 5px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 25px 0 12px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 21px;
+    }
+
+    .section-title span {
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    .card {
+      background: #111827;
+      border: 1px solid #263449;
+      border-radius: 18px;
+      padding: 17px;
+      transition: transform .15s ease, border-color .15s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: #3b82f6;
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .rank {
+      display: inline-flex;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: #172554;
+      color: #93c5fd;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+    }
+
+    .ticker {
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .name {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
+    .score {
+      min-width: 65px;
+      text-align: center;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #064e3b;
+      color: #a7f3d0;
+      font-weight: 900;
+    }
+
+    .score.medium {
+      background: #78350f;
+      color: #fde68a;
+    }
+
+    .score.low {
+      background: #450a0a;
+      color: #fecaca;
+    }
+
+    .price {
+      margin-top: 16px;
+      font-size: 25px;
+      font-weight: 800;
+    }
+
+    .change-positive {
+      color: #34d399;
+    }
+
+    .change-negative {
+      color: #fb7185;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 15px;
+    }
+
+    .metric {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .metric-label {
+      color: #64748b;
+      font-size: 11px;
+    }
+
+    .metric-value {
+      margin-top: 3px;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .signal {
+      margin-top: 14px;
+      padding: 11px;
+      border-radius: 10px;
+      background: #172554;
+      color: #bfdbfe;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .loading,
+    .empty,
+    .error {
+      background: #111827;
+      border: 1px solid #263449;
+      border-radius: 16px;
+      padding: 25px;
+      text-align: center;
+      color: #94a3b8;
+    }
+
+    .error {
+      border-color: #7f1d1d;
+      color: #fecaca;
+    }
+
+    .info {
+      margin-top: 18px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 16px;
+      color: #94a3b8;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    footer {
+      border-top: 1px solid #1e293b;
+      color: #64748b;
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 700px) {
+      .header-content {
+        align-items: flex-start;
+      }
+
+      .status {
+        display: none;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 430px) {
+      .container {
+        padding: 13px;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .price {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div class="container header-content">
+
+    <div class="brand">
+      <div class="logo">📡</div>
+
+      <div>
+        <h1>Radar de Inversión</h1>
+        <div class="subtitle">
+          Análisis inteligente de CEDEARs
+        </div>
+      </div>
+    </div>
+
+    <div class="status" id="status">
+      ● Sistema activo
+    </div>
+
+  </div>
+</header>
+
+<main class="container">
+
+  <section class="hero">
+
+    <h2>🏆 Top 5 CEDEARs</h2>
+
+    <p>
+      Ranking de oportunidades basado en tendencia, momentum,
+      riesgo/beneficio y objetivos técnicos.
+    </p>
+
+    <div class="controls">
+
+      <input
+        id="search"
+        type="search"
+        placeholder="Buscar CEDEAR..."
+        autocomplete="off"
+      >
+
+      <button id="refreshBtn">
+        🔄 Actualizar
+      </button>
+
+    </div>
+
+  </section>
+
+  <section class="stats">
+
+    <div class="stat">
+      <div class="stat-label">Activos analizados</div>
+      <div class="stat-value" id="totalAssets">—</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-label">Top 5</div>
+      <div class="stat-value" id="topCount">—</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-label">Mejor score</div>
+      <div class="stat-value" id="bestScore">—</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-label">Actualización</div>
+      <div class="stat-value" id="lastUpdate">—</div>
+    </div>
+
+  </section>
+
+  <div class="section-title">
+    <h2>📊 Ranking</h2>
+    <span id="resultCount"></span>
+  </div>
+
+  <section id="ranking" class="cards">
+
+    <div class="loading">
+      Cargando análisis...
+    </div>
+
+  </section>
+
+  <section class="info">
+
+    <strong>ℹ️ Cómo funciona</strong>
+
+    <br><br>
+
+    El Radar asigna una puntuación a cada activo utilizando
+    diferentes factores técnicos. Los resultados sirven como
+    herramienta de análisis y no constituyen asesoramiento
+    financiero personalizado.
+
+    <br><br>
+
+    <strong>⚠️ Importante:</strong>
+    antes de invertir, verificá cotizaciones, liquidez,
+    comisiones, tipo de cambio y condiciones actuales del mercado.
+
+  </section>
+
+</main>
+
+<footer>
+  Radar de Inversión · CEDEARs · Actualización automática semanal
+</footer>
+
+<script>
+
+  const rankingElement = document.getElementById("ranking");
+  const searchElement = document.getElementById("search");
+
+  let assets = [];
+
+  /*
+   * Datos de respaldo.
+   * Se utilizan únicamente si todavía no existe
+   * data/weekly_top5.json.
+   */
+
+  const fallbackData = [
+    {
+      ticker: "AAPL",
+      name: "Apple",
+      price: 0,
+      change: 0,
+      score: 0,
+      entry: 0,
+      target: 0,
+      stop: 0,
+      riskReward: 0,
+      signal: "Esperando datos"
+    },
+    {
+      ticker: "MSFT",
+      name: "Microsoft",
+      price: 0,
+      change: 0,
+      score: 0,
+      entry: 0,
+      target: 0,
+      stop: 0,
+      riskReward: 0,
+      signal: "Esperando datos"
+    },
+    {
+      ticker: "NVDA",
+      name: "NVIDIA",
+      price: 0,
+      change: 0,
+      score: 0,
+      entry: 0,
+      target: 0,
+      stop: 0,
+      riskReward: 0,
+      signal: "Esperando datos"
+    },
+    {
+      ticker: "AMZN",
+      name: "Amazon",
+      price: 0,
+      change: 0,
+      score: 0,
+      entry: 0,
+      target: 0,
+      stop: 0,
+      riskReward: 0,
+      signal: "Esperando datos"
+    },
+    {
+      ticker: "GOOGL",
+      name: "Alphabet",
+      price: 0,
+      change: 0,
+      score: 0,
+      entry: 0,
+      target: 0,
+      stop: 0,
+      riskReward: 0,
+      signal: "Esperando datos"
+    }
+  ];
+
+  function number(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function money(value) {
+
+    const n = number(value);
+
+    if (n === 0) {
+      return "—";
+    }
+
+    return "$" + n.toLocaleString("es-AR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+
+  }
+
+  function percent(value) {
+
+    const n = number(value);
+
+    if (n === 0) {
+      return "0%";
+    }
+
+    return (
+      n > 0 ? "+" : ""
+    ) + n.toFixed(2) + "%";
+
+  }
+
+  function scoreClass(score) {
+
+    if (score >= 75) {
+      return "";
+    }
+
+    if (score >= 50) {
+      return "medium";
+    }
+
+    return "low";
+
+  }
+
+  function normalizeData(data) {
+
+    let list = data;
+
+    if (data && Array.isArray(data.top5)) {
+      list = data.top5;
+    }
+
+    if (data && Array.isArray(data.ranking)) {
+      list = data.ranking;
+    }
+
+    if (!Array.isArray(list)) {
+      list = [];
+    }
+
+    return list.map((item, index) => ({
+
+      ticker:
+        item.ticker ||
+        item.symbol ||
+        item.cedear ||
+        "N/A",
+
+      name:
+        item.name ||
+        item.nombre ||
+        item.company ||
+        "CEDEAR",
+
+      price:
+        item.price ??
+        item.precio ??
+        item.current_price ??
+        0,
+
+      change:
+        item.change ??
+        item.variation ??
+        item.variacion ??
+        0,
+
+      score:
+        item.score ??
+        item.puntaje ??
+        item.rating ??
+        0,
+
+      entry:
+        item.entry ??
+        item.entrada ??
+        item.entry_price ??
+        0,
+
+      target:
+        item.target ??
+        item.objetivo ??
+        item.take_profit ??
+        0,
+
+      stop:
+        item.stop ??
+        item.stop_loss ??
+        item.stopLoss ??
+        0,
+
+      riskReward:
+        item.riskReward ??
+        item.risk_reward ??
+        item.rr ??
+        0,
+
+      signal:
+        item.signal ||
+        item.señal ||
+        item.recommendation ||
+        item.recomendacion ||
+        "Analizar"
+
+    }));
+
+  }
+
+  async function loadData() {
+
+    setStatus("● Actualizando...");
+
+    try {
+
+      const url =
+        "./data/weekly_top5.json?cache=" +
+        Date.now();
+
+      const response = await fetch(url, {
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        throw new Error("No se encontró el archivo de datos.");
+      }
+
+      const data = await response.json();
+
+      assets = normalizeData(data);
+
+      if (!assets.length) {
+        assets = fallbackData;
+      }
+
+      setStatus("● Datos actualizados");
+
+    } catch (error) {
+
+      console.warn(error);
+
+      /*
+       * Si todavía no existe el JSON,
+       * mostramos una interfaz funcional.
+       */
+
+      assets = fallbackData;
+
+      setStatus("● Modo demostración");
+
+    }
+
+    render();
+
+  }
+
+  function render() {
+
+    const query =
+      searchElement.value
+        .trim()
+        .toLowerCase();
+
+    const filtered = assets.filter(item => {
+
+      return (
+        item.ticker.toLowerCase().includes(query) ||
+        item.name.toLowerCase().includes(query)
+      );
+
+    });
+
+    document.getElementById("totalAssets").textContent =
+      assets.length;
+
+    document.getElementById("topCount").textContent =
+      Math.min(5, assets.length);
+
+    const best =
+      assets.length
+        ? Math.max(...assets.map(x => number(x.score)))
+        : 0;
+
+    document.getElementById("bestScore").textContent =
+      best ? best : "—";
+
+    document.getElementById("lastUpdate").textContent =
+      new Date().toLocaleDateString("es-AR");
+
+    document.getElementById("resultCount").textContent =
+      filtered.length + " resultados";
+
+    if (!filtered.length) {
+
+      rankingElement.innerHTML = `
+        <div class="empty">
+          No se encontraron CEDEARs.
+        </div>
+      `;
+
+      return;
+    }
+
+    rankingElement.innerHTML =
+      filtered.map((item, index) => {
+
+        const score = number(item.score);
+        const change = number(item.change);
+
+        const changeClass =
+          change >= 0
+            ? "change-positive"
+            : "change-negative";
+
+        return `
+
+          <article class="card">
+
+            <div class="card-top">
+
+              <div style="display:flex;gap:10px;align-items:center">
+
+                <div class="rank">
+                  #${index + 1}
+                </div>
+
+                <div>
+
+                  <div class="ticker">
+                    ${escapeHtml(item.ticker)}
+                  </div>
+
+                  <div class="name">
+                    ${escapeHtml(item.name)}
+                  </div>
+
+                </div>
+
+              </div>
+
+              <div class="score ${scoreClass(score)}">
+                ${score ? score : "—"}
+              </div>
+
+            </div>
+
+            <div class="price">
+              ${money(item.price)}
+            </div>
+
+            <div class="${changeClass}">
+              ${percent(change)}
+            </div>
+
+            <div class="metrics">
+
+              <div class="metric">
+                <div class="metric-label">
+                  Entrada
+                </div>
+
+                <div class="metric-value">
+                  ${money(item.entry)}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">
+                  Objetivo
+                </div>
+
+                <div class="metric-value">
+                  ${money(item.target)}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">
+                  Stop
+                </div>
+
+                <div class="metric-value">
+                  ${money(item.stop)}
+                </div>
+              </div>
+
+            </div>
+
+            <div class="metrics">
+
+              <div class="metric">
+                <div class="metric-label">
+                  Riesgo/Beneficio
+                </div>
+
+                <div class="metric-value">
+                  ${item.riskReward
+                    ? "1:" + number(item.riskReward).toFixed(2)
+                    : "—"}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">
+                  Score
+                </div>
+
+                <div class="metric-value">
+                  ${score || "—"}
+                </div>
+              </div>
+
+              <div class="metric">
+                <div class="metric-label">
+                  Ranking
+                </div>
+
+                <div class="metric-value">
+                  #${index + 1}
+                </div>
+              </div>
+
+            </div>
+
+            <div class="signal">
+              🎯 ${escapeHtml(item.signal)}
+            </div>
+
+          </article>
+
+        `;
+
+      }).join("");
+
+  }
+
+  function escapeHtml(value) {
+
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  }
+
+  function setStatus(text) {
+
+    document.getElementById("status").textContent =
+      text;
+
+  }
+
+  searchElement.addEventListener(
+    "input",
+    render
+  );
+
+  document
+    .getElementById("refreshBtn")
+    .addEventListener(
+      "click",
+      loadData
+    );
+
+  /*
+   * Service Worker para PWA.
+   */
+
+  if ("serviceWorker" in navigator) {
+
+    window.addEventListener(
+      "load",
+      () => {
+
+        navigator.serviceWorker
+          .register("./sw.js")
+          .then(() => {
+            console.log("Service Worker registrado.");
+          })
+          .catch(error => {
+            console.warn(
+              "No se pudo registrar el Service Worker:",
+              error
+            );
+          });
+
+      }
+    );
+
+  }
+
+  /*
+   * Inicio.
+   */
+
+  loadData();
+
+</script>
+
+</body>
+</html>
